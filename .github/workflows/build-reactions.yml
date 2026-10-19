@@ -34,8 +34,8 @@ jobs:
           echo "DEBUG_KEYSTORE_B64 secret is missing" >&2
           exit 1
         fi
-        mkdir -p ~/.android
-        echo "$DEBUG_KEYSTORE_B64" | base64 -d > ~/.android/debug.keystore
+        echo "$DEBUG_KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/debug.keystore"
+        echo "DEBUG_KEYSTORE=$RUNNER_TEMP/debug.keystore" >> "$GITHUB_ENV"
 
     - name: Build with Gradle
       run: ./gradlew assembleDebug
@@ -58,6 +58,17 @@ jobs:
           exit 1
         fi
         mv "${apk_files[0]}" presentation/build/outputs/apk/debug/QUIK-debug.apk
+
+    - name: Check the APK is signed with the stable key
+      run: |
+        set -euo pipefail
+        expected=$(keytool -exportcert -keystore "$DEBUG_KEYSTORE" -storepass android -alias androiddebugkey | sha256sum | cut -d' ' -f1)
+        apksigner="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)/apksigner"
+        actual=$("$apksigner" verify --print-certs presentation/build/outputs/apk/debug/QUIK-debug.apk | sed -n 's/^Signer #1 certificate SHA-256 digest: //p')
+        if [[ "$actual" != "$expected" ]]; then
+          echo "APK is signed with $actual, expected $expected" >&2
+          exit 1
+        fi
 
     - name: Upload App
       uses: actions/upload-artifact@v7
