@@ -53,9 +53,10 @@ class RemoteMessagingReceiver : BroadcastReceiver() {
         val pendingRepository = goAsync()
         sendNewMessage.execute(
             SendNewMessage.Params(
-                subscriptionManager.activeSubscriptionInfoList
-                    .firstOrNull { it.subscriptionId == lastMessage?.subId }
-                    ?.subscriptionId ?: -1,
+                subscriptionManager.sendingSubscription(
+                    subscriptionManager.activeSubscriptionInfoList,
+                    lastMessage?.subId ?: -1
+                )?.subscriptionId ?: -1,
                 0,
                 conversation?.recipients?.map { it.address } ?: return,
                 remoteInput.getCharSequence("body").toString(),
