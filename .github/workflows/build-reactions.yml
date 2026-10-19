@@ -24,6 +24,19 @@ jobs:
         java-version: '17'
         cache: gradle
 
+    - name: Use the stable debug signing key
+      # Each runner makes a fresh debug key, and an APK signed with a different key
+      # can't update the one on the phone, so the key comes from a repo secret.
+      env:
+        DEBUG_KEYSTORE_B64: ${{ secrets.DEBUG_KEYSTORE_B64 }}
+      run: |
+        if [[ -z "$DEBUG_KEYSTORE_B64" ]]; then
+          echo "DEBUG_KEYSTORE_B64 secret is missing" >&2
+          exit 1
+        fi
+        mkdir -p ~/.android
+        echo "$DEBUG_KEYSTORE_B64" | base64 -d > ~/.android/debug.keystore
+
     - name: Build with Gradle
       run: ./gradlew assembleDebug
 
