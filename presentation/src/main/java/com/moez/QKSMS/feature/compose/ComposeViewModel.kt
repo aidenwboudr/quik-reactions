@@ -286,7 +286,7 @@ class ComposeViewModel @Inject constructor(
 
         val subscriptions = ActiveSubscriptionObservable(subscriptionManager)
         disposables += Observables.combineLatest(latestSubId, subscriptions) { subId, subs ->
-            val sub = if (subs.size > 1) subs.firstOrNull { it.subscriptionId == subId } ?: subs[0] else null
+            val sub = subscriptionManager.sendingSubscription(subs, subId)
             newState { copy(subscription = sub) }
         }.subscribe()
 

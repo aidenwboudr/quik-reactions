@@ -24,6 +24,19 @@ jobs:
         java-version: '17'
         cache: gradle
 
+    - name: Use the stable debug signing key
+      # Each runner makes a fresh debug key, and an APK signed with a different key
+      # can't update the one on the phone, so the key comes from a repo secret.
+      env:
+        DEBUG_KEYSTORE_B64: ${{ secrets.DEBUG_KEYSTORE_B64 }}
+      run: |
+        if [[ -z "$DEBUG_KEYSTORE_B64" ]]; then
+          echo "DEBUG_KEYSTORE_B64 secret is missing" >&2
+          exit 1
+        fi
+        echo "$DEBUG_KEYSTORE_B64" | base64 -d > "$RUNNER_TEMP/debug.keystore"
+        echo "DEBUG_KEYSTORE=$RUNNER_TEMP/debug.keystore" >> "$GITHUB_ENV"
+
     - name: Build with Gradle
       run: ./gradlew assembleDebug
 
@@ -45,6 +58,19 @@ jobs:
           exit 1
         fi
         mv "${apk_files[0]}" presentation/build/outputs/apk/debug/QUIK-debug.apk
+
+    - name: Check the APK is signed with the stable key
+      run: |
+        set -euo pipefail
+        expected=$(keytool -exportcert -keystore "$DEBUG_KEYSTORE" -storepass android -alias androiddebugkey | sha256sum | cut -d' ' -f1)
+        apksigner="$(ls -d "$ANDROID_HOME"/build-tools/* | sort -V | tail -1)/apksigner"
+        certs=$("$apksigner" verify --print-certs presentation/build/outputs/apk/debug/QUIK-debug.apk 2>&1)
+        actual=$(grep -m1 'certificate SHA-256 digest:' <<<"$certs" | awk '{print $NF}' || true)
+        if [[ "$actual" != "$expected" ]]; then
+          echo "$certs" >&2
+          echo "APK is signed with '$actual', expected $expected" >&2
+          exit 1
+        fi
 
     - name: Upload App
       uses: actions/upload-artifact@v7
